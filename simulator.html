@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hospital Queue Simulator</title>
+<style>
+:root{--bg:#eef2f7;--card:#fff;--fg:#182033;--mut:#64708a;--line:#dde3ee;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--p:#2563eb;--slot:#f1f4fa;--sh:0 2px 10px rgba(20,30,60,.07);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1119;--card:#171e2d;--fg:#e8ecf5;--mut:#8f9cb5;--line:#27324a;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--p:#60a5fa;--slot:#1f283c;--sh:none;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d1119;--card:#171e2d;--fg:#e8ecf5;--mut:#8f9cb5;--line:#27324a;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--p:#60a5fa;--slot:#1f283c;--sh:none;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+h1{font-size:1.5rem;margin:0}h2{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 10px}
+.clock{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums}.clock small{display:block;font-size:.75rem;color:var(--mut);font-weight:400;text-align:right}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--sh)}.mb{margin-bottom:12px}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:end}
+label{display:flex;flex-direction:column;font-size:.75rem;color:var(--mut);gap:3px}label b{color:var(--fg)}
+select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+button{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:9px;padding:8px 14px;cursor:pointer}
+button.main{background:var(--p);color:#fff;border-color:var(--p);font-weight:600}button.surge{border-color:var(--bad);color:var(--bad);font-weight:600}
+#load{border-radius:12px;padding:10px 14px;font-weight:600;color:#fff}
+.grid{display:grid;grid-template-columns:1.3fr 1fr;gap:12px}@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.room{display:flex;flex-wrap:wrap;gap:6px;min-height:70px;align-content:flex-start}
+.chip{min-width:46px;padding:4px 6px;border-radius:9px;color:#fff;text-align:center;font-size:.78rem;font-weight:700;line-height:1.15;animation:in .3s}
+.chip small{display:block;font-weight:400;opacity:.9;font-size:.65rem}
+@keyframes in{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+.s1{background:#dc2626}.s2{background:#d97706}.s3{background:#16a34a}
+.leg{display:flex;gap:12px;flex-wrap:wrap;font-size:.75rem;color:var(--mut);margin-top:8px}.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px}
+.docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.doc{border:2px solid var(--line);border-radius:12px;padding:8px;background:var(--bg)}.doc.busy{border-color:var(--p)}
+.doc b{font-size:.85rem}.doc .pt{margin:6px 0;min-height:36px;display:flex;align-items:center}
+.bar{height:8px;border-radius:99px;background:var(--slot);overflow:hidden}.bar i{display:block;height:100%;background:var(--p)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.stat{background:var(--bg);border-radius:10px;padding:8px;text-align:center}.stat b{display:block;font-size:1.3rem}.stat span{font-size:.7rem;color:var(--mut)}
+svg{width:100%;height:130px;display:block}
+#log{height:170px;overflow:auto;font:12.5px/1.55 ui-monospace,Menlo,Consolas,monospace}#log div{border-bottom:1px solid var(--line);padding:1px 0}
+#log .c{color:var(--bad);font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<header><div><h1>🏥 Hospital Queue Simulator</h1><div style="color:var(--mut)">Emergency department with triage priority · multi-doctor queue</div></div>
+<div class="clock"><span id="clk">Day 1 · 08:00</span><small id="sub"></small></div></header>
+
+<div class="card ctrl mb">
+ <label>Arrivals: <b id="rv"></b> patients/hour<input type="range" id="rate" min="1" max="40" value="8"></label>
+ <label>Doctors<select id="doc"></select></label>
+ <label>Queue discipline<select id="disc"><option value="prio">Triage priority</option><option value="fifo">First come, first served</option></select></label>
+ <label>Speed: <b id="sv"></b> min/sec<input type="range" id="spd" min="1" max="60" value="12"></label>
+ <button class="main" id="go">▶ Start</button><button id="stp">+1 min</button><button id="rst">Reset</button><button class="surge" id="surge">🚑 Surge (+8)</button>
+</div>
+
+<div id="load" class="mb"></div>
+
+<div class="grid mb">
+ <div class="card"><h2>Waiting room · <span id="qn"></span> waiting (next to be seen first)</h2><div class="room" id="room"></div>
+  <div class="leg"><span><i class="s1"></i>Critical</span><span><i class="s2"></i>Urgent</span><span><i class="s3"></i>Normal</span><span>Number = wait so far (min)</span></div></div>
+ <div class="card"><h2>Doctors</h2><div class="docs" id="docs"></div></div>
+</div>
+
+<div class="card mb"><h2>Statistics</h2><div class="stats" id="stats"></div></div>
+<div class="grid">
+ <div class="card"><h2>Queue length over time</h2><svg id="ch" viewBox="0 0 600 130" preserveAspectRatio="none"></svg></div>
+ <div class="card"><h2>Event log</h2><div id="log"></div></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id),rnd=Math.random;
+const NAME={1:'Critical',2:'Urgent',3:'Normal'},MEAN={1:30,2:20,3:12};
+for(let i=1;i<=8;i++)$('doc').add(new Option(i,i,i==3,i==3));
+let S,timer=null;
+const avgSvc=.1*30+.3*20+.6*12;
+function poisson(l){let L=Math.exp(-l),k=0,p=1;do{k++;p*=rnd()}while(p>L);return k-1}
+function reset(){pause();S={t:0,q:[],docs:Array.from({length:+$('doc').value},()=>({p:null})),id:1,done:0,w:{1:[0,0],2:[0,0],3:[0,0]},maxq:0,hist:[],log:[],busy:0};render()}
+function add(){const r=rnd(),sev=r<.1?1:r<.4?2:3,svc=Math.max(3,Math.round(-MEAN[sev]*Math.log(1-rnd())));
+ const p={id:S.id++,sev,arr:S.t,svc,rem:svc};S.q.push(p);if(sev===1)log(`#${p.id} CRITICAL patient arrives`,1);return p}
+function log(m,c){S.log.unshift({m:`[${fmt(S.t)}] ${m}`,c});if(S.log.length>60)S.log.pop()}
+function fmt(t){const m=(480+t)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
+function pick(){let b=0;if($('disc').value==='prio'){for(let i=1;i<S.q.length;i++)if(S.q[i].sev<S.q[b].sev)b=i}return S.q.splice(b,1)[0]}
+function tick(){
+ S.t++;const k=poisson(+$('rate').value/60);for(let i=0;i<k;i++)add();
+ S.docs.forEach((d,i)=>{if(d.p&&--d.p.rem<=0){S.done++;log(`Dr ${i+1} finished #${d.p.id} (${NAME[d.p.sev]}, ${d.p.svc} min)`);d.p=null}});
+ S.docs.forEach((d,i)=>{if(!d.p&&S.q.length){const p=pick(),w=S.t-p.arr;d.p=p;S.w[p.sev][0]+=w;S.w[p.sev][1]++;log(`Dr ${i+1} starts #${p.id} (${NAME[p.sev]}) after ${w} min wait`)}});
+ S.busy+=S.docs.filter(d=>d.p).length;S.maxq=Math.max(S.maxq,S.q.length);S.hist.push(S.q.length);if(S.hist.length>300)S.hist.shift();
+ render()}
+function sorted(){return $('disc').value==='prio'?S.q.slice().sort((a,b)=>a.sev-b.sev||a.arr-b.arr):S.q.slice()}
+const avg=a=>a[1]?(a[0]/a[1]).toFixed(1):'–';
+function render(){
+ const rate=+$('rate').value,nd=S.docs.length,cap=nd*60/avgSvc,rho=rate/cap;
+ $('rv').textContent=rate;$('sv').textContent=$('spd').value;
+ $('clk').textContent=`Day ${1+Math.floor((480+S.t)/1440)} · ${fmt(S.t)}`;$('sub').textContent=`${S.t} simulated minutes`;
+ const l=$('load');l.style.background=rho<.8?'var(--ok)':rho<1?'var(--warn)':'var(--bad)';
+ l.textContent=`Load: ${rate} arrivals/hour vs capacity ≈ ${cap.toFixed(1)}/hour (${(rho*100).toFixed(0)}% busy needed). `+(rho<.8?'Queue should stay short.':rho<1?'Close to capacity: waits will spike.':'Overloaded: the queue grows without limit!');
+ const q=sorted();$('qn').textContent=q.length;
+ $('room').innerHTML=q.slice(0,40).map(p=>`<div class="chip s${p.sev}" title="${NAME[p.sev]}">#${p.id}<small>${S.t-p.arr}m</small></div>`).join('')+(q.length>40?`<div class="chip" style="background:var(--mut)">+${q.length-40}</div>`:'')||'<span style="color:var(--mut)">Empty</span>';
+ $('docs').innerHTML=S.docs.map((d,i)=>d.p?`<div class="doc busy"><b>Dr ${i+1}</b><div class="pt"><div class="chip s${d.p.sev}">#${d.p.id}<small>${NAME[d.p.sev]}</small></div></div><div class="bar"><i style="width:${(1-d.p.rem/d.p.svc)*100}%"></i></div></div>`:`<div class="doc"><b>Dr ${i+1}</b><div class="pt" style="color:var(--mut)">idle</div><div class="bar"></div></div>`).join('');
+ const util=S.t?(S.busy/(S.t*nd)*100).toFixed(0)+'%':'–',all=[S.w[1][0]+S.w[2][0]+S.w[3][0],S.w[1][1]+S.w[2][1]+S.w[3][1]];
+ const oldest=S.q.length?Math.max(...S.q.map(p=>S.t-p.arr)):0;
+ $('stats').innerHTML=[['In queue',S.q.length],['Max queue',S.maxq],['Treated',S.done],['Doctor utilization',util],['Avg wait (all)',avg(all)+' min'],['Avg wait: critical',avg(S.w[1])+' min'],['Avg wait: urgent',avg(S.w[2])+' min'],['Avg wait: normal',avg(S.w[3])+' min'],['Longest wait now',oldest+' min']].map(([a,b])=>`<div class="stat"><b>${b}</b><span>${a}</span></div>`).join('');
+ const h=S.hist,mx=Math.max(5,...h),n=Math.max(h.length,2),pts=h.map((v,i)=>`${(i/(n-1)*600).toFixed(1)},${(125-v/mx*115).toFixed(1)}`).join(' ');
+ $('ch').innerHTML=`<line x1="0" y1="125" x2="600" y2="125" stroke="var(--line)"/><text x="4" y="12" fill="var(--mut)" font-size="11">max ${mx}</text><polyline points="${pts}" fill="none" stroke="var(--p)" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+ $('log').innerHTML=S.log.map(x=>`<div class="${x.c?'c':''}">${x.m}</div>`).join('')}
+function start(){if(timer)return;$('go').textContent='⏸ Pause';timer=setInterval(tick,1000/$('spd').value)}
+function pause(){if(timer){clearInterval(timer);timer=null}$('go').textContent='▶ Start'}
+$('go').onclick=()=>timer?pause():start();$('stp').onclick=()=>{pause();tick()};$('rst').onclick=reset;
+$('surge').onclick=()=>{for(let i=0;i<8;i++)add();log('SURGE: 8 patients arrive at once (accident)',1);render()};
+$('spd').oninput=()=>{if(timer){pause();start()}else render()};$('rate').oninput=render;
+$('doc').onchange=reset;$('disc').onchange=render;
+reset();
+</script>
+</body>
+</html>
